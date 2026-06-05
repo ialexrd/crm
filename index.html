@@ -87,8 +87,9 @@
   .card-name-row { font-size: 14px; color: #444; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 2px; }
   .card-name-row .card-name { font-weight: 500; }
   .card-name-row .card-phone { white-space: nowrap; }
-  .card-row3 { font-size: 12px; color: #aaa; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; padding-right: 70px; }
+  .card-row3 { font-size: 12px; color: #aaa; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; padding-right: 105px; }
   .card-sum { font-weight: 500; color: #1a1a1a; }
+  .card-sum-inline { font-weight: 700; font-size: 14px; color: #1a1a1a; white-space: nowrap; }
   .card-bottom { position: absolute; bottom: 12px; right: 16px; }
   .card-actions-icons { display: flex; gap: 5px; }
   .card-actions { display: flex; gap: 8px; margin-top: 8px; }
@@ -329,14 +330,17 @@
 
       const card = document.createElement('div');
       card.className = 'order-card';
-      const phoneRow = isAdmin ? `<span class="card-phone"><a href="tel:${o.phone}" style="color:inherit;text-decoration:none">${o.phone}</a></span>` : '';
-      const btns = isAdmin ? `<div class="card-actions-icons"><button class="btn-icon" onclick="window._edit('${o.id}')">✎</button><button class="btn-icon danger" onclick="window._del('${o.id}')">✕</button></div>` : '';
-      const meta = [o.sum ? Number(o.sum).toLocaleString('ru')+' ₽' : null, o.vol, o.src, o.spec].filter(Boolean);
+      const maskedPhone = o.phone ? o.phone.slice(0, -4) + '****' : '';
+      const phoneRow = isAdmin ? `<span class="card-phone" id="ph-${o.id}">${maskedPhone}</span>` : '';
+      const sumStr = o.sum ? Number(o.sum).toLocaleString('ru')+' ₽' : '';
+      const sumSpan = sumStr ? `<span class="card-sum-inline">${sumStr}</span>` : '';
+      const btns = isAdmin ? `<div class="card-actions-icons"><button class="btn-icon" onclick="window._edit('${o.id}')">✎</button><button class="btn-icon" onclick="window._revealPhone('${o.id}','${o.phone}')">☎</button><button class="btn-icon danger" onclick="window._del('${o.id}')">✕</button></div>` : '';
+      const meta = [o.vol, o.src, o.spec].filter(Boolean);
       card.innerHTML = `
         <div class="card-addr-row">${o.addr}</div>
         <div class="card-date-row">${fmt(o.date,o.time)}</div>
-        <div class="card-name-row"><span class="card-name">${o.name}</span>${phoneRow}</div>
-        ${meta.length ? `<div class="card-row3">${meta.map((m,i)=>i===0?`<span class="card-sum">${m}</span>`:`<span>${m}</span>`).join('')}</div>` : ''}
+        <div class="card-name-row"><span class="card-name">${o.name}</span>${phoneRow}${sumSpan}</div>
+        ${meta.length ? `<div class="card-row3">${meta.map(m=>`<span>${m}</span>`).join('')}</div>` : ''}
         ${btns ? `<div class="card-bottom">${btns}</div>` : ''}`;
       cards.appendChild(card);
     });
@@ -451,6 +455,11 @@
   };
 
   window.cancelEdit = function() { clearForm(); window.showTab('list'); };
+
+  window._revealPhone = function(id, phone) {
+    const el = document.getElementById('ph-' + id);
+    if (el) el.innerHTML = `<a href="tel:${phone}" style="color:inherit;text-decoration:none">${phone}</a>`;
+  };
 </script>
 </body>
 </html>
