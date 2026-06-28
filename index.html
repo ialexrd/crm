@@ -291,6 +291,10 @@
     if (from) f = f.filter(o => o.date >= from);
     if (to)   f = f.filter(o => o.date <= to);
     if (q)    f = f.filter(o => (o.name||'').toLowerCase().includes(q)||(o.addr||'').toLowerCase().includes(q)||(o.phone||'').toLowerCase().includes(q));
+    f.sort((a,b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return (a.time || '').localeCompare(b.time || '');
+    });
     renderList(f);
   };
 
@@ -346,7 +350,7 @@
 
   function startListening() {
     if (unsubscribe) unsubscribe();
-    const q = query(ordersCol, orderBy("date","asc"), orderBy("time","asc"));
+    const q = query(ordersCol, orderBy("date","asc"));
     unsubscribe = onSnapshot(q, snap => {
       allOrders = snap.docs.map(d=>({id:d.id,...d.data()}));
       setConn(true); window.applyFilters();
