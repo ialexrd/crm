@@ -346,7 +346,7 @@
 
   function startListening() {
     if (unsubscribe) unsubscribe();
-    const q = query(ordersCol, orderBy("date","asc"));
+    const q = query(ordersCol, orderBy("date","asc"), orderBy("time","asc"));
     unsubscribe = onSnapshot(q, snap => {
       allOrders = snap.docs.map(d=>({id:d.id,...d.data()}));
       setConn(true); window.applyFilters();
