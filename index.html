@@ -255,9 +255,19 @@
   function fmt(d, t) {
     if (!d) return '';
     const [y, m, day] = d.split('-');
-    const days = ['вс','пн','вт','ср','чт','пт','сб'];
-    const dow = days[new Date(+y, +m-1, +day).getDay()];
-    return day+'.'+m+'.'+y+' ('+dow+')'+(t?' '+t:'');
+    const date = new Date(+y, +m-1, +day);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    let dayStr;
+    if (date.getTime() === today.getTime()) dayStr = 'Сегодня';
+    else if (date.getTime() === tomorrow.getTime()) dayStr = 'Завтра';
+    else {
+      const fullDays = ['воскресенье','понедельник','вторник','среду','четверг','пятницу','субботу'];
+      dayStr = fullDays[date.getDay()];
+    }
+    return day+'.'+m+'.'+y+' ('+dayStr+')'+(t?' '+t:'');
   }
 
   async function syncToSheets(order) {
