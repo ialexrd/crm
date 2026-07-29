@@ -119,6 +119,15 @@
 
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 999; white-space: nowrap; }
   .toast.show { opacity: 1; }
+
+  .phone-count { display: inline-flex; align-items: center; justify-content: center; background: #e74c3c; color: #fff; border-radius: 50%; width: 17px; height: 17px; font-size: 10px; font-weight: 700; margin-left: 5px; flex-shrink: 0; vertical-align: middle; }
+
+  .history-section { margin-top: 1.5rem; border-top: 0.5px solid rgba(0,0,0,.1); padding-top: 1.25rem; }
+  .history-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 10px; }
+  .history-item { background: #fafafa; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; border: 0.5px solid rgba(0,0,0,.08); }
+  .history-item-date { font-weight: 600; color: #f5a623; margin-bottom: 3px; font-size: 13px; }
+  .history-item-addr { color: #1a1a1a; margin-bottom: 3px; }
+  .history-item-meta { color: #aaa; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -202,6 +211,7 @@
         <button class="btn-secondary" onclick="window.cancelEdit()">Отмена</button>
       </div>
       <div class="form-note">* Обязательные поля</div>
+      <div id="order-history" class="history-section" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -210,7 +220,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -226,7 +236,9 @@
   const SHEETS_URL = "https://script.google.com/macros/s/AKfycbx9yN5t8yVkiXFpC1hgjk7TIzfH0aMLA1IWsHpJAUnBiPnYX3YcyPdzKpYZGFYPgeGOXQ/exec";
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+  });
   const auth = getAuth(app);
   const ordersCol = collection(db, "orders");
 
@@ -331,10 +343,14 @@
     if (!orders.length) { table.style.display='none'; empty.style.display='block'; return; }
     table.style.display = 'table'; empty.style.display = 'none';
 
+    const phoneCounts = {};
+    allOrders.forEach(o => { if (o.phone) phoneCounts[o.phone] = (phoneCounts[o.phone]||0) + 1; });
+
     orders.forEach(o => {
+      const countBadge = (o.phone && phoneCounts[o.phone] > 1) ? `<span class="phone-count">${phoneCounts[o.phone]}</span>` : '';
       const tr = document.createElement('tr');
       if (isAdmin) {
-        tr.innerHTML = `<td>${o.addr}</td><td>${o.name}</td><td><a href="tel:${o.phone}" style="color:inherit;text-decoration:none">${o.phone}</a></td><td>${fmt(o.date,o.time)}</td><td class="sum-cell">${o.sum?Number(o.sum).toLocaleString('ru')+' ₽':'—'}</td><td>${o.vol||'—'}</td><td><span class="badge">${o.src||'—'}</span></td><td>${o.spec||'—'}</td><td><div class="actions"><button class="btn-icon" onclick="window._edit('${o.id}')">✎</button><button class="btn-icon danger" onclick="window._del('${o.id}')">✕</button></div></td>`;
+        tr.innerHTML = `<td>${o.addr}</td><td>${o.name}</td><td><a href="tel:${o.phone}" style="color:inherit;text-decoration:none">${o.phone}</a>${countBadge}</td><td>${fmt(o.date,o.time)}</td><td class="sum-cell">${o.sum?Number(o.sum).toLocaleString('ru')+' ₽':'—'}</td><td>${o.vol||'—'}</td><td><span class="badge">${o.src||'—'}</span></td><td>${o.spec||'—'}</td><td><div class="actions"><button class="btn-icon" onclick="window._edit('${o.id}')">✎</button><button class="btn-icon danger" onclick="window._del('${o.id}')">✕</button></div></td>`;
       } else {
         tr.innerHTML = `<td>${o.addr}</td><td>${o.name}</td><td>${fmt(o.date,o.time)}</td><td class="sum-cell">${o.sum?Number(o.sum).toLocaleString('ru')+' ₽':'—'}</td><td>${o.vol||'—'}</td><td><span class="badge">${o.src||'—'}</span></td><td>${o.spec||'—'}</td>`;
       }
@@ -343,7 +359,7 @@
       const card = document.createElement('div');
       card.className = 'order-card';
       const maskedPhone = o.phone ? o.phone.slice(0, -4) + '****' : '';
-      const phoneRow = isAdmin ? `<span class="card-phone" id="ph-${o.id}">${maskedPhone}</span>` : '';
+      const phoneRow = isAdmin ? `<span class="card-phone" id="ph-${o.id}">${maskedPhone}${countBadge}</span>` : '';
       const sumStr = o.sum ? Number(o.sum).toLocaleString('ru')+' ₽' : '';
       const sumSpan = sumStr ? `<span class="card-sum-inline">${sumStr}</span>` : '';
       const btns = isAdmin ? `<div class="card-actions-icons"><button class="btn-icon" onclick="window._edit('${o.id}')">✎</button><button class="btn-icon" onclick="window._revealPhone('${o.id}','${o.phone}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/><path d="M15 1v2c3.31 0 6 2.69 6 6h2c0-4.42-3.58-8-8-8z"/><path d="M15 5v2c1.1 0 2 .9 2 2h2c0-2.21-1.79-4-4-4z"/></svg></button><button class="btn-icon danger" onclick="window._del('${o.id}')">✕</button></div>` : '';
@@ -413,6 +429,7 @@
     document.getElementById('form-title').textContent = 'Новый заказ';
     document.getElementById('save-btn').disabled = false;
     document.getElementById('save-btn').textContent = 'Сохранить заказ';
+    document.getElementById('order-history').style.display = 'none';
   }
 
   window.saveOrder = async function() {
@@ -457,6 +474,29 @@
     document.getElementById('form-title').textContent = 'Редактировать заказ';
     document.getElementById('save-btn').disabled = false;
     document.getElementById('save-btn').textContent = 'Сохранить заказ';
+    const histEl = document.getElementById('order-history');
+    if (o.phone) {
+      const history = allOrders
+        .filter(x => x.phone === o.phone && x.id !== id)
+        .sort((a,b) => b.date.localeCompare(a.date) || (b.time||'').localeCompare(a.time||''));
+      if (history.length) {
+        histEl.innerHTML = `<div class="history-title">История по этому номеру (${history.length})</div>` +
+          history.map(h => {
+            const meta = [h.sum ? Number(h.sum).toLocaleString('ru')+' ₽' : '', h.spec, h.src, h.vol].filter(Boolean).join(' · ');
+            return `<div class="history-item">
+              <div class="history-item-date">${fmt(h.date, h.time)}</div>
+              <div class="history-item-addr">${h.addr}</div>
+              ${h.name !== o.name ? `<div class="history-item-meta">Имя: ${h.name}</div>` : ''}
+              ${meta ? `<div class="history-item-meta">${meta}</div>` : ''}
+            </div>`;
+          }).join('');
+        histEl.style.display = 'block';
+      } else {
+        histEl.style.display = 'none';
+      }
+    } else {
+      histEl.style.display = 'none';
+    }
     window.showTab('form');
   };
 
