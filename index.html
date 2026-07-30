@@ -343,11 +343,12 @@
     if (!orders.length) { table.style.display='none'; empty.style.display='block'; return; }
     table.style.display = 'table'; empty.style.display = 'none';
 
+    const phoneKey = p => p ? p.replace(/\D/g,'').slice(-10) : '';
     const phoneCounts = {};
-    allOrders.forEach(o => { if (o.phone) phoneCounts[o.phone] = (phoneCounts[o.phone]||0) + 1; });
+    allOrders.forEach(o => { if (o.phone) { const k=phoneKey(o.phone); phoneCounts[k]=(phoneCounts[k]||0)+1; } });
 
     orders.forEach(o => {
-      const countBadge = (o.phone && phoneCounts[o.phone] > 1) ? `<span class="phone-count">${phoneCounts[o.phone]}</span>` : '';
+      const countBadge = (o.phone && phoneCounts[phoneKey(o.phone)] > 1) ? `<span class="phone-count">${phoneCounts[phoneKey(o.phone)]}</span>` : '';
       const tr = document.createElement('tr');
       if (isAdmin) {
         tr.innerHTML = `<td>${o.addr}</td><td>${o.name}</td><td><a href="tel:${o.phone}" style="color:inherit;text-decoration:none">${o.phone}</a>${countBadge}</td><td>${fmt(o.date,o.time)}</td><td class="sum-cell">${o.sum?Number(o.sum).toLocaleString('ru')+' ₽':'—'}</td><td>${o.vol||'—'}</td><td><span class="badge">${o.src||'—'}</span></td><td>${o.spec||'—'}</td><td><div class="actions"><button class="btn-icon" onclick="window._edit('${o.id}')">✎</button><button class="btn-icon danger" onclick="window._del('${o.id}')">✕</button></div></td>`;
@@ -476,8 +477,9 @@
     document.getElementById('save-btn').textContent = 'Сохранить заказ';
     const histEl = document.getElementById('order-history');
     if (o.phone) {
+      const phoneKey = p => p ? p.replace(/\D/g,'').slice(-10) : '';
       const history = allOrders
-        .filter(x => x.phone === o.phone && x.id !== id)
+        .filter(x => x.phone && phoneKey(x.phone) === phoneKey(o.phone) && x.id !== id)
         .sort((a,b) => b.date.localeCompare(a.date) || (b.time||'').localeCompare(a.time||''));
       if (history.length) {
         histEl.innerHTML = `<div class="history-title">История по этому номеру (${history.length})</div>` +
