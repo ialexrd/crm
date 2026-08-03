@@ -122,6 +122,13 @@
 
   .phone-count { display: inline-flex; align-items: center; justify-content: center; background: #e74c3c; color: #fff; border-radius: 50%; width: 17px; height: 17px; font-size: 10px; font-weight: 700; margin-left: 5px; flex-shrink: 0; vertical-align: middle; }
 
+  select { border: 0.5px solid rgba(0,0,0,.18); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; color: #1a1a1a; background: #fff; outline: none; width: 100%; transition: border-color .12s; appearance: none; cursor: pointer; }
+  select:focus { border-color: rgba(0,0,0,.4); }
+  .extras-wrap { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0; }
+  .extra-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #444; cursor: pointer; padding: 6px 11px; border: 0.5px solid rgba(0,0,0,.12); border-radius: 6px; background: #fff; user-select: none; transition: all .12s; }
+  .extra-check input[type=checkbox] { accent-color: #1a1a1a; width: 14px; height: 14px; cursor: pointer; }
+  .extra-check:has(input:checked) { background: #f0f0f0; border-color: rgba(0,0,0,.25); font-weight: 500; }
+
   .history-section { margin-top: 1.5rem; border-top: 0.5px solid rgba(0,0,0,.1); padding-top: 1.25rem; }
   .history-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 10px; }
   .history-item { background: #fafafa; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; border: 0.5px solid rgba(0,0,0,.08); }
@@ -204,7 +211,34 @@
         <div class="field"><label>Сумма (₽)</label><input id="f-sum" type="number" placeholder="0" min="0"></div>
         <div class="field"><label>Источник</label><input id="f-src" type="text" placeholder="Авито, ВК, сарафан..."></div>
         <div class="field full"><label>Специалист</label><input id="f-spec" type="text" placeholder="Имя специалиста"></div>
-        <div class="field full"><label>Объём заказа</label><input id="f-vol" type="text" placeholder="Что будет на заказе..."></div>
+        <div class="field full">
+          <label>Услуга</label>
+          <select id="f-service" onchange="window.onServiceChange()">
+            <option value="">— Выберите услугу —</option>
+            <option value="Химчистка дивана">Химчистка дивана</option>
+            <option value="Химчистка ковра">Химчистка ковра</option>
+            <option value="Химчистка матраса">Химчистка матраса</option>
+            <option value="Химчистка кресла">Химчистка кресла</option>
+            <option value="Химчистка автокресла">Химчистка автокресла</option>
+            <option value="Химчистка мягкой мебели">Химчистка мягкой мебели</option>
+            <option value="Уборка квартиры">Уборка квартиры</option>
+            <option value="Генеральная уборка">Генеральная уборка</option>
+            <option value="__other__">Другое (ввести вручную)</option>
+          </select>
+          <input id="f-service-other" type="text" placeholder="Введите название услуги" style="display:none;margin-top:6px">
+        </div>
+        <div class="field full">
+          <label>Доп. услуги</label>
+          <div class="extras-wrap">
+            <label class="extra-check"><input type="checkbox" value="Химчистка потолка"> Химчистка потолка</label>
+            <label class="extra-check"><input type="checkbox" value="Дезодорация"> Дезодорация</label>
+            <label class="extra-check"><input type="checkbox" value="Пятновыводка"> Пятновыводка</label>
+            <label class="extra-check"><input type="checkbox" value="Дезинфекция"> Дезинфекция</label>
+            <label class="extra-check"><input type="checkbox" value="Вывоз мусора"> Вывоз мусора</label>
+          </div>
+        </div>
+        <div class="field"><label>Кол-во дней</label><input id="f-days" type="number" placeholder="1" min="1"></div>
+        <div class="field full"><label>Объём / примечание</label><input id="f-vol" type="text" placeholder="Доп. информация о заказе..."></div>
       </div>
       <div class="form-actions">
         <button class="btn-primary" id="save-btn" onclick="window.saveOrder()">Сохранить заказ</button>
@@ -290,6 +324,24 @@
       img.src = SHEETS_URL + '?' + params.toString();
     } catch(e) { console.warn('Sheets sync failed:', e); }
   }
+
+  function getExtras() {
+    return Array.from(document.querySelectorAll('.extras-wrap input[type=checkbox]:checked')).map(c => c.value).join(', ');
+  }
+
+  function setExtras(val) {
+    const vals = (val || '').split(',').map(s => s.trim()).filter(Boolean);
+    document.querySelectorAll('.extras-wrap input[type=checkbox]').forEach(cb => {
+      cb.checked = vals.includes(cb.value);
+    });
+  }
+
+  window.onServiceChange = function() {
+    const sel = document.getElementById('f-service');
+    const other = document.getElementById('f-service-other');
+    if (sel.value === '__other__') { other.style.display = ''; other.focus(); }
+    else { other.style.display = 'none'; other.value = ''; }
+  };
 
   window.setPreset = function(p) {
     ['week','month','all'].forEach(x => document.getElementById('pre-'+x).classList.toggle('active', x===p));
@@ -425,7 +477,10 @@
   };
 
   function clearForm() {
-    ['f-name','f-phone','f-addr','f-date','f-time','f-sum','f-src','f-spec','f-vol'].forEach(id => document.getElementById(id).value = '');
+    ['f-name','f-phone','f-addr','f-date','f-time','f-sum','f-src','f-spec','f-vol','f-days','f-service-other'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-service').value = '';
+    document.getElementById('f-service-other').style.display = 'none';
+    setExtras('');
     editId = null;
     document.getElementById('form-title').textContent = 'Новый заказ';
     document.getElementById('save-btn').disabled = false;
@@ -442,13 +497,18 @@
     if (!name||!phone||!addr||!date) { alert('Заполните: имя, телефон, адрес, дата'); return; }
     const btn = document.getElementById('save-btn');
     btn.disabled = true; btn.textContent = 'Сохранение...';
+    const serviceVal = document.getElementById('f-service').value;
+    const service = serviceVal === '__other__' ? document.getElementById('f-service-other').value.trim() : serviceVal;
     const order = {
       name, phone, addr, date,
       time: document.getElementById('f-time').value,
       sum: document.getElementById('f-sum').value,
       src: document.getElementById('f-src').value.trim(),
       spec: document.getElementById('f-spec').value.trim(),
-      vol: document.getElementById('f-vol').value.trim()
+      vol: document.getElementById('f-vol').value.trim(),
+      service,
+      extras: getExtras(),
+      days: document.getElementById('f-days').value
     };
     try {
       if (editId) {
@@ -471,7 +531,14 @@
     if (!isAdmin) return;
     const o = allOrders.find(x => x.id===id); if (!o) return;
     editId = id;
-    ['name','phone','addr','date','time','sum','src','spec','vol'].forEach(k => document.getElementById('f-'+k).value = o[k]||'');
+    ['name','phone','addr','date','time','sum','src','spec','vol','days'].forEach(k => document.getElementById('f-'+k).value = o[k]||'');
+    const knownServices = ['Химчистка дивана','Химчистка ковра','Химчистка матраса','Химчистка кресла','Химчистка автокресла','Химчистка мягкой мебели','Уборка квартиры','Генеральная уборка'];
+    const sel = document.getElementById('f-service');
+    const otherInp = document.getElementById('f-service-other');
+    if (!o.service) { sel.value = ''; otherInp.style.display='none'; otherInp.value=''; }
+    else if (knownServices.includes(o.service)) { sel.value = o.service; otherInp.style.display='none'; otherInp.value=''; }
+    else { sel.value = '__other__'; otherInp.style.display=''; otherInp.value = o.service; }
+    setExtras(o.extras||'');
     document.getElementById('form-title').textContent = 'Редактировать заказ';
     document.getElementById('save-btn').disabled = false;
     document.getElementById('save-btn').textContent = 'Сохранить заказ';
