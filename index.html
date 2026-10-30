@@ -95,6 +95,20 @@
   .card-btn { padding: 4px 12px; border-radius: 6px; border: 0.5px solid rgba(0,0,0,.15); background: transparent; font-size: 12px; cursor: pointer; color: #555; }
   .card-btn.danger { color: #c0392b; border-color: #f5bcbc; }
 
+  .tab-count { display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 4px; border-radius: 8px; background: #e74c3c; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+  .lead { padding: 12px 16px; border-bottom: 0.5px solid rgba(0,0,0,.07); }
+  .lead:last-child { border-bottom: none; }
+  .lead-top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .lead-name { font-weight: 500; font-size: 14px; }
+  .lead-when { font-size: 12px; color: #999; margin-left: auto; }
+  .lead-row { font-size: 13px; color: #444; margin-top: 4px; }
+  .lead-note { font-size: 12.5px; color: #777; margin-top: 4px; white-space: pre-wrap; }
+  .badge.st-new { background: #fdecea; color: #c0392b; }
+  .badge.st-thinking { background: #fff6e0; color: #9a6b00; }
+  .lead-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .lead-btn { padding: 5px 11px; border-radius: 6px; border: 0.5px solid rgba(0,0,0,.15); background: transparent; font-size: 12px; cursor: pointer; color: #333; }
+  .lead-btn.main { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .lead-btn.danger { color: #c0392b; border-color: #f5bcbc; }
   .empty { padding: 2.5rem; text-align: center; color: #aaa; font-size: 14px; }
   .loading { padding: 2rem; text-align: center; color: #aaa; font-size: 14px; }
 
@@ -150,8 +164,9 @@
       <span class="role-badge" id="role-badge"></span>
       <button class="btn-logout" onclick="window.doLogout()">Выйти</button>
       <div class="tabs">
-        <button class="tab active" onclick="window.showTab('list')">Заказы</button>
-        <button class="tab" id="tab-add" onclick="window.showTab('form')" style="display:none">+ Добавить</button>
+        <button class="tab active" data-tab="list" onclick="window.showTab('list')">Заказы</button>
+        <button class="tab" data-tab="leads" id="tab-leads" onclick="window.showTab('leads')" style="display:none">Заявки<span class="tab-count" id="leads-count" style="display:none"></span></button>
+        <button class="tab" data-tab="form" id="tab-add" onclick="window.showTab('form')" style="display:none">+ Добавить</button>
       </div>
     </div>
   </div>
@@ -189,6 +204,13 @@
         <div id="cards-list"></div>
       </div>
       <div id="empty-state" class="empty" style="display:none">Нет заказов за выбранный период</div>
+    </div>
+  </div>
+
+  <div id="sec-leads" class="section">
+    <div class="table-wrap">
+      <div id="leads-list"></div>
+      <div id="leads-empty" class="empty" style="display:none">Новых заявок нет</div>
     </div>
   </div>
 
@@ -241,6 +263,10 @@
   });
   const auth = getAuth(app);
   const ordersCol = collection(db, "orders");
+
+  // Заявки от бота: new — новая, thinking — думает. Записанные заказы: booked или без статуса (старые).
+  const LEAD_STATUSES = ['new', 'thinking'];
+  const LEAD_STATUS_RU = {new: 'новая', thinking: 'думает'};
 
   let allOrders = [], editId = null, isAdmin = false, unsubscribe = null;
 
@@ -309,12 +335,12 @@
     const from = document.getElementById('date-from').value;
     const to = document.getElementById('date-to').value;
     const q = document.getElementById('search-input').value.toLowerCase();
-    let f = allOrders;
+    let f = allOrders.filter(o => !LEAD_STATUSES.includes(o.status) && o.status !== 'lost');
     if (from) f = f.filter(o => o.date >= from);
     if (to)   f = f.filter(o => o.date <= to);
     if (q)    f = f.filter(o => (o.name||'').toLowerCase().includes(q)||(o.addr||'').toLowerCase().includes(q)||(o.phone||'').toLowerCase().includes(q));
     f.sort((a,b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      if (a.date !== b.date) return (a.date||'').localeCompare(b.date||'');
       return (a.time || '').localeCompare(b.time || '');
     });
     renderList(f);
@@ -380,7 +406,7 @@
     const q = query(ordersCol, orderBy("date","asc"));
     unsubscribe = onSnapshot(q, snap => {
       allOrders = snap.docs.map(d=>({id:d.id,...d.data()}));
-      setConn(true); window.applyFilters();
+      setConn(true); window.applyFilters(); renderLeads();
     }, () => { setConn(false); document.getElementById('loading-state').textContent='Ошибка загрузки.'; });
   }
 
@@ -393,6 +419,7 @@
       badge.textContent = isAdmin ? 'Админ' : 'Специалист';
       badge.className = 'role-badge ' + (isAdmin ? 'admin' : 'spec');
       document.getElementById('tab-add').style.display = isAdmin ? '' : 'none';
+      document.getElementById('tab-leads').style.display = isAdmin ? '' : 'none';
       buildTableHead(); initDates(); startListening();
     } else {
       document.getElementById('login-wrap').style.display = 'flex';
@@ -419,8 +446,9 @@
   window.doLogout = () => signOut(auth);
 
   window.showTab = function(t) {
-    document.querySelectorAll('.tab').forEach((el,i) => el.classList.toggle('active', (t==='list'&&i===0)||(t==='form'&&i===1)));
+    document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.dataset.tab===t));
     document.getElementById('sec-list').classList.toggle('visible', t==='list');
+    document.getElementById('sec-leads').classList.toggle('visible', t==='leads');
     document.getElementById('sec-form').classList.toggle('visible', t==='form');
   };
 
@@ -450,11 +478,16 @@
       spec: document.getElementById('f-spec').value.trim(),
       vol: document.getElementById('f-vol').value.trim()
     };
+    const editing = editId ? allOrders.find(x => x.id===editId) : null;
+    const fromLead = editing && LEAD_STATUSES.includes(editing.status);
     try {
       if (editId) {
+        if (fromLead) order.status = 'booked';
         await updateDoc(doc(db,"orders",editId), order);
-        showToast('Заказ обновлён');
+        if (fromLead) syncToSheets(order);
+        showToast(fromLead ? 'Заявка записана в заказы' : 'Заказ обновлён');
       } else {
+        order.status = 'booked';
         order.createdAt = Date.now();
         await addDoc(ordersCol, order);
         syncToSheets(order);
@@ -472,7 +505,7 @@
     const o = allOrders.find(x => x.id===id); if (!o) return;
     editId = id;
     ['name','phone','addr','date','time','sum','src','spec','vol'].forEach(k => document.getElementById('f-'+k).value = o[k]||'');
-    document.getElementById('form-title').textContent = 'Редактировать заказ';
+    document.getElementById('form-title').textContent = LEAD_STATUSES.includes(o.status) ? 'Записать заявку' : 'Редактировать заказ';
     document.getElementById('save-btn').disabled = false;
     document.getElementById('save-btn').textContent = 'Сохранить заказ';
     const histEl = document.getElementById('order-history');
@@ -506,6 +539,53 @@
     if (!isAdmin || !confirm('Удалить заказ?')) return;
     try { await deleteDoc(doc(db,"orders",id)); showToast('Заказ удалён'); }
     catch(e) { alert('Ошибка: ' + e.message); }
+  };
+
+  function esc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function fmtCreated(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    return d.toLocaleDateString('ru', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function renderLeads() {
+    const leads = allOrders.filter(o => LEAD_STATUSES.includes(o.status))
+      .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    const count = document.getElementById('leads-count');
+    const fresh = leads.filter(o => o.status === 'new').length;
+    count.textContent = fresh; count.style.display = fresh ? '' : 'none';
+    document.getElementById('leads-empty').style.display = leads.length ? 'none' : 'block';
+    document.getElementById('leads-list').innerHTML = leads.map(o => {
+      const contacts = [o.phone ? `<a href="tel:${esc(o.phone)}" style="color:inherit">${esc(o.phone)}</a>` : '', esc(o.addr)].filter(Boolean).join(' · ');
+      const think = o.status === 'thinking'
+        ? `<button class="lead-btn" onclick="window._leadStatus('${o.id}','new')">Вернуть в новые</button>`
+        : `<button class="lead-btn" onclick="window._leadStatus('${o.id}','thinking')">Думает</button>`;
+      return `<div class="lead">
+        <div class="lead-top"><span class="lead-name">${esc(o.name) || 'Без имени'}</span>
+          <span class="badge st-${o.status}">${LEAD_STATUS_RU[o.status]}</span>
+          ${o.src ? `<span class="badge">${esc(o.src)}</span>` : ''}
+          <span class="lead-when">${fmtCreated(o.createdAt)}</span></div>
+        ${contacts ? `<div class="lead-row">${contacts}</div>` : ''}
+        ${o.vol ? `<div class="lead-row">${esc(o.vol)}</div>` : ''}
+        ${o.note ? `<div class="lead-note">${esc(o.note)}</div>` : ''}
+        <div class="lead-actions">
+          <button class="lead-btn main" onclick="window._edit('${o.id}')">Записать</button>
+          ${think}
+          <button class="lead-btn" onclick="window._leadStatus('${o.id}','lost')">Отказ</button>
+          <button class="lead-btn danger" onclick="window._del('${o.id}')">Удалить</button>
+        </div></div>`;
+    }).join('');
+  }
+
+  window._leadStatus = async function(id, status) {
+    if (!isAdmin) return;
+    try {
+      await updateDoc(doc(db,"orders",id), {status, updatedAt: Date.now()});
+      showToast(status === 'lost' ? 'Отмечено: отказ' : 'Статус обновлён');
+    } catch(e) { alert('Ошибка: ' + e.message); }
   };
 
   window.cancelEdit = function() { clearForm(); window.showTab('list'); };
